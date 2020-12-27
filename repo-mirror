@@ -78,7 +78,7 @@ class LocalOptionParser(optparse.OptionParser):
     def handle_version(option, opt, value, parser):
         with open(__file__, "rb") as f:
             sha1 = hashlib.sha1(f.read()).hexdigest()
-        print("%s version %s [sha1:%s]" % (parser.prog, VERSION, sha1))
+        print("%s version %s [sha1:%s] (ayashkin fork)" % (parser.prog, VERSION, sha1))
         parser.exit(0)
 
     def process_args(self, opts, args):
@@ -162,14 +162,10 @@ def mkdir_p(path, dryrun=False, logger=None, mode=None):
     if dryrun:
         if logger: logger.info("dry-run: %s" % cmd_str)
         return 0
-    try:
-        if logger: logger.debug("executing %s..." % cmd_str)
+    if logger: logger.debug("executing %s..." % cmd_str)
+    if not os.path.isdir(path):
         os.makedirs(path)
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            pass
-        else: raise # pragma: no cover
-    if mode: os.chmod(path, mode)
+        if mode: os.chmod(path, mode)
 
 def clean_rec(path, dryrun=False, logger=None):
     cmd_str = "rm -rf '%s'" % path
@@ -189,7 +185,7 @@ class Lock:
         self.logger = logger
         self.handle = None
         if self.logger: self.logger.debug("creating lock '%s'..." % self.filename)
-        mkdir_p(os.path.dirname(filename))
+        mkdir_p(os.path.dirname(filename), mode=(stat.S_IRWXU|stat.S_IRWXG))
         self.handle = open(filename, 'w')
 
     def acquire(self):
@@ -238,7 +234,7 @@ class CachePathLock(ICacheLock):
         if logger: logger.debug("creating CachePathLock '%s' '%s'..." % (rootname, dpath))
         assert(os.path.normpath(dpath) == dpath)
         assert(dpath[0] == '/')
-        mkdir_p(rootname)
+        mkdir_p(rootname, mode=(stat.S_IRWXU|stat.S_IRWXG))
         self.rootname = os.path.abspath(rootname)
         self.dpath = dpath
         self.logger = logger
@@ -556,10 +552,10 @@ class RepoMirror():
         # Fixup init arguments to be passed to repo init --mirror/--reference
         init_arguments = self._fixup_repo_init_arguments(self.args.arguments)
 
-        # Create mirror dir if non existent and set user only permission
+        # Create mirror dir if non existent
         try:
             self.logger.debug("creating mirror dir '%s'" % self.args.mirror_dir)
-            mkdir_p(self.args.mirror_dir, self.args.dry_run, self.logger, mode=stat.S_IRWXU)
+            mkdir_p(self.args.mirror_dir, self.args.dry_run, self.logger, mode=(stat.S_IRWXU|stat.S_IRWXG))
         except OSError as e:
             print("repo-mirror: error:: can't create mirror dir '%s': %s" %
                   (self.args.mirror_dir, e.strerror),
@@ -576,7 +572,7 @@ class RepoMirror():
 
             # Prepare repo
             mirrors_dir = os.path.join(mirror_dir_id, "repos")
-            mkdir_p(mirrors_dir, self.args.dry_run, self.logger, mode=stat.S_IRWXU)
+            mkdir_p(mirrors_dir, self.args.dry_run, self.logger, mode=(stat.S_IRWXU|stat.S_IRWXG))
 
             # Fixup some known errors
             self._fixup_mirrors_repos(mirrors_dir)
